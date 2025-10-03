@@ -162,7 +162,11 @@ frontend/
 
 ---
 
-
+## 9) Troubleshooting
+- Backend won’t start: ensure venv is active and requirements installed
+- DB connect fails: verify the connection string and that the DB is reachable
+- Uploaded docs not appearing: re-run the query; uploads are synchronous (immediate). Check `documents.db` exists and has rows.
+- CORS: UI is a static file; backend allows all origins by default.
 
 ---
 
