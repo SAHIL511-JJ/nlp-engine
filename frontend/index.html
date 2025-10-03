@@ -1,0 +1,317 @@
+cat > index.html << 'EOF'
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>NLP Query Engine</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;margin:18px;background:#0f1115;color:#e6e9f0}
+    .panel{background:#151821;border:1px solid #242a38;border-radius:8px;padding:12px;margin-bottom:12px}
+    .row{display:flex;gap:8px;align-items:center}
+    input[type=text]{flex:1;padding:10px;border-radius:8px;border:1px solid #242a38;background:#0f1320;color:#e6e9f0}
+    button{padding:9px 12px;border-radius:8px;border:1px solid #2a3246;background:#4f7cff;color:#fff;cursor:pointer}
+    pre{background:#071025;border:1px dashed #20273a;padding:10px;border-radius:8px;color:#bcd0ff;white-space:pre-wrap;word-break:break-word;min-height:72px;margin:8px 0 0}
+    .small{font-size:12px;color:#8b93a6}
+    .half{flex:1}
+    .tableWrap{background:#071025;border-radius:6px;padding:8px;overflow:auto;min-height:72px}
+    table.dbTable{width:100%;border-collapse:collapse;color:#dbe9ff;font-size:13px}
+    table.dbTable th, table.dbTable td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.04);text-align:left}
+    table.dbTable th{background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);color:#9fb7ff;font-weight:600}
+    .noResults{color:#98a0b8;font-style:italic;padding:8px}
+    .docCard{background:#071025;border:1px solid rgba(255,255,255,0.04);border-radius:8px;padding:10px;margin-bottom:8px}
+    .docCardTitle{color:#9fb7ff;font-weight:600;font-size:14px}
+    .docCardSnippet{color:#cfe6ff;margin-top:6px;font-size:13px;line-height:1.4}
+    .success{color:#4f7cff}
+    .error{color:#ff6b6b}
+  </style>
+</head>
+<body>
+  <h1>NLP Query Engine</h1>
+
+  <div class="panel">
+    <div class="row" style="gap:8px">
+      <input id="dbUrl" type="text" placeholder="Enter DB URL (e.g., sqlite:///./company.db or postgresql://user:pass@host/db)" />
+      <button id="btnConnect">Connect & Get Schema</button>
+    </div>
+    <pre id="connectOut">Enter a DB URL and click connect</pre>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <input id="q" type="text" placeholder="Try: how many employees OR resumes mentioning java" style="flex:3" />
+      <button id="btnRun">Search</button>
+    </div>
+
+    <div class="row" style="margin-top:12px;gap:12px">
+      <button id="btnMetrics">Metrics</button>
+      <button id="btnExportCsv">Export SQL CSV</button>
+      <button id="btnExportJson">Export SQL JSON</button>
+    </div>
+
+    <div class="row" style="margin-top:12px;gap:12px">
+      <div class="half">
+        <div class="small">Database Results (<span id="sqlCount">0</span>)</div>
+        <div id="dbOut" class="tableWrap"><div class="noResults">No database results yet</div></div>
+      </div>
+      <div class="half">
+        <div class="small">Document Results (<span id="docCount">0</span>)</div>
+        <div id="docOut" class="tableWrap"><div class="noResults">No document results yet</div></div>
+      </div>
+    </div>
+
+    <div style="margin-top:12px">
+      <div class="small">Query Info</div>
+      <div id="metrics" class="small">Response: — ms · Type: —</div>
+      <pre id="sqlOut" style="min-height:40px;margin:8px 0 0;font-size:12px">Generated SQL will appear here</pre>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row" style="gap:8px; align-items:flex-start">
+      <input id="filePicker" type="file" multiple />
+      <button id="btnUploadFiles">Upload Documents</button>
+      <button id="btnUpload">Create Sample Documents</button>
+    </div>
+    <div class="small" style="margin-top:8px">Upload PDF/DOCX/TXT/CSV or create sample docs</div>
+    <pre id="uploadOut">Choose files or create sample documents</pre>
+  </div>
+
+  <script>
+    const API_BASE = "http://localhost:8000";
+    
+    async function safeJson(res){ 
+      const t = await res.text(); 
+      try{ return t ? JSON.parse(t) : {}; } 
+      catch(e){ return {raw:t}; } 
+    }
+
+    // Connect to database
+    document.getElementById("btnConnect").addEventListener("click", async () => {
+      const out = document.getElementById("connectOut"); 
+      const dbUrl = document.getElementById("dbUrl").value.trim();
+      out.textContent = "Connecting...";
+      
+      try {
+        if (!dbUrl) throw new Error("Please enter a DB URL");
+        const resConn = await fetch(`${API_BASE}/api/connect-database`, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ connection_string: dbUrl })
+        });
+        const r1 = await safeJson(resConn);
+        if (!resConn.ok) throw new Error(r1.detail || r1.error || "Connect failed");
+        
+        const res = await fetch(`${API_BASE}/api/schema`);
+        const data = await safeJson(res);
+        if (!res.ok) throw new Error(data.error || "Failed to get schema");
+        
+        out.innerHTML = `<span class="success">✅ Connected!</span>\nTables: ${data.total_tables}, Columns: ${data.total_columns}, Documents: ${data.total_documents || 0}`;
+      } catch (err) { 
+        out.innerHTML = `<span class="error">Connection failed: ${err.message}</span>`;
+      }
+    });
+    // Upload chosen files
+    document.getElementById("btnUploadFiles").addEventListener("click", async ()=>{
+      const out = document.getElementById("uploadOut");
+      const fp = document.getElementById("filePicker");
+      if(!fp.files || fp.files.length === 0){
+        out.textContent = "No files selected";
+        return;
+      }
+      out.textContent = "Uploading...";
+      const form = new FormData();
+      for(const f of fp.files){ form.append("files", f); }
+      try{
+        const res = await fetch(`${API_BASE}/api/ingest/documents`, { method: 'POST', body: form });
+        const data = await safeJson(res);
+        if(!res.ok) throw new Error(data.detail || data.error || 'Upload failed');
+        out.innerHTML = `<span class="success">✅ Upload started (job: ${data.job_id})</span>`;
+        setTimeout(()=>document.getElementById("btnConnect").click(), 1200);
+      }catch(err){
+        out.innerHTML = `<span class="error">Upload failed: ${err.message}</span>`;
+      }
+    });
+
+    // Render table
+    function renderTable(container, rows) {
+      container.innerHTML = "";
+      if (!rows || !rows.length) {
+        container.innerHTML = "<div class='noResults'>No results</div>";
+        return;
+      }
+      
+      const table = document.createElement("table");
+      table.className = "dbTable";
+      const thead = document.createElement("thead");
+      const headerRow = document.createElement("tr");
+      const cols = Object.keys(rows[0]);
+      
+      cols.forEach(c => {
+        const th = document.createElement("th");
+        th.textContent = c;
+        headerRow.appendChild(th);
+      });
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+      
+      const tbody = document.createElement("tbody");
+      rows.forEach(r => {
+        const tr = document.createElement("tr");
+        cols.forEach(c => {
+          const td = document.createElement("td");
+          let v = r[c];
+          if (v === null || v === undefined) v = "";
+          td.textContent = String(v);
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      container.appendChild(table);
+    }
+
+    // Render document cards
+    function renderDocCards(container, docs){
+      container.innerHTML = "";
+      if (!docs || !docs.length) {
+        container.innerHTML = "<div class='noResults'>No documents found</div>";
+        return;
+      }
+      
+      docs.forEach(d => {
+        const card = document.createElement("div");
+        card.className = "docCard";
+        
+        const title = document.createElement("div");
+        title.className = "docCardTitle";
+        title.innerHTML = `${d.title} <span style="color:#4f7cff">(${(d.relevance * 100).toFixed(0)}% match)</span>`;
+        
+        const snippet = document.createElement("div");
+        snippet.className = "docCardSnippet";
+        snippet.textContent = d.content;
+        
+        card.appendChild(title);
+        card.appendChild(snippet);
+        container.appendChild(card);
+      });
+    }
+
+    // Execute query
+    document.getElementById("btnRun").addEventListener("click", async () => {
+      const dbOut = document.getElementById("dbOut");
+      const docOut = document.getElementById("docOut");
+      const sqlOut = document.getElementById("sqlOut");
+      const metrics = document.getElementById("metrics");
+      
+      const query = document.getElementById("q").value.trim();
+      if (!query) {
+        alert("Please enter a query");
+        return;
+      }
+      
+      dbOut.innerHTML = "<div class='noResults'>Searching...</div>";
+      docOut.innerHTML = "<div class='noResults'>Searching...</div>";
+      sqlOut.textContent = "Processing...";
+      metrics.textContent = "Response: — ms · Type: —";
+      
+      try {
+        const startTime = performance.now();
+        const res = await fetch(`${API_BASE}/api/query`, { 
+          method: "POST", 
+          headers: {"Content-Type": "application/json"}, 
+          body: JSON.stringify({ query }) 
+        });
+        const endTime = performance.now();
+        
+        const data = await safeJson(res);
+        if (!res.ok) throw new Error(data.error || "Query failed");
+        
+        const responseTime = Math.round(endTime - startTime);
+        
+        // Update counts
+        document.getElementById("sqlCount").textContent = data.results?.sql_count || 0;
+        document.getElementById("docCount").textContent = data.results?.document_count || 0;
+        
+        // Render results
+        renderTable(dbOut, data.results?.sql_data || []);
+        renderDocCards(docOut, data.results?.document_data || []);
+        
+        // Show query info
+        metrics.textContent = `Response: ${responseTime}ms · Type: ${data.query_type}`;
+        sqlOut.textContent = data.results?.generated_sql || "No SQL generated";
+        
+      } catch (err) {
+        dbOut.innerHTML = `<div class="error">Error: ${err.message}</div>`;
+        docOut.innerHTML = `<div class="error">Error: ${err.message}</div>`;
+        sqlOut.textContent = `Error: ${err.message}`;
+        metrics.textContent = "Response: — ms · Type: error";
+      }
+    });
+
+    // Upload sample documents
+    document.getElementById("btnUpload").addEventListener("click", async () => {
+      const out = document.getElementById("uploadOut");
+      out.textContent = "Creating sample documents...";
+      
+      try {
+        const res = await fetch(`${API_BASE}/api/ingest/documents`, { 
+          method: "POST", 
+          headers: {"Content-Type": "application/json"} 
+        });
+        
+        const data = await safeJson(res);
+        if (!res.ok) throw new Error(data.error || "Upload failed");
+        
+        out.innerHTML = `<span class="success">✅ ${data.message}</span>`;
+        
+        // Refresh connection info
+        setTimeout(() => document.getElementById("btnConnect").click(), 1000);
+        
+      } catch(err){ 
+        out.innerHTML = `<span class="error">Upload failed: ${err.message}</span>`;
+      }
+    });
+
+    document.getElementById("btnMetrics").addEventListener("click", async ()=>{
+      const res = await fetch(`${API_BASE}/api/metrics`);
+      const data = await safeJson(res);
+      alert(`Cache: ${data.cache_size}\nRecent queries: ${data.recent_queries}\nTables: ${data.tables}\nColumns: ${data.columns}`);
+    });
+
+    document.getElementById("btnExportCsv").addEventListener("click", async ()=>{
+      const q = document.getElementById("q").value.trim();
+      if(!q){ alert("Enter a query first"); return; }
+      const res = await fetch(`${API_BASE}/api/export/csv?q=`+encodeURIComponent(q));
+      const data = await safeJson(res);
+      if(data.content){
+        const blob = new Blob([data.content], {type: 'text/csv'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = data.filename || 'export.csv'; a.click();
+        URL.revokeObjectURL(url);
+      }
+    });
+
+    document.getElementById("btnExportJson").addEventListener("click", async ()=>{
+      const q = document.getElementById("q").value.trim();
+      if(!q){ alert("Enter a query first"); return; }
+      const res = await fetch(`${API_BASE}/api/export/json?q=`+encodeURIComponent(q));
+      const data = await safeJson(res);
+      if(data.content){
+        const blob = new Blob([JSON.stringify(data.content, null, 2)], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = data.filename || 'export.json'; a.click();
+        URL.revokeObjectURL(url);
+      }
+    });
+
+    // Initial connection test
+    setTimeout(() => {
+      document.getElementById("btnConnect").click();
+    }, 500);
+  </script>
+</body>
+</html>
+EOF

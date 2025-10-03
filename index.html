@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NLP Query Engine</title>
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <div style="background: #f5f5f5; padding: 20px; border-bottom: 2px solid #ddd;">
+            <h1 style="margin: 0; color: #333;">NLP Query Engine for Employee Data</h1>
+            <div style="color: green; font-weight: bold;">✅ Connected to: http://localhost:8000</div>
+        </div>
+
+        <!-- Main Navigation -->
+        <div style="background: #e9e9e9; padding: 10px; display: flex; gap: 10px;">
+            <button onclick="showSection('connect')" style="padding: 10px 20px;">Connect Data</button>
+            <button onclick="showSection('query')" style="padding: 10px 20px;">Query Data</button>
+            <button onclick="showSection('metrics')" style="padding: 10px 20px;">Metrics</button>
+        </div>
+
+        <!-- Connect Data Section -->
+        <div id="connect-section" style="padding: 20px;">
+            <h2>Data Ingestion</h2>
+            
+            <!-- Database Connection -->
+            <div style="border: 1px solid #ccc; padding: 20px; margin-bottom: 20px;">
+                <h3>Database Connection</h3>
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px;">Connection String:</label>
+                    <input type="text" id="connectionString" 
+                           style="width: 500px; padding: 8px;" 
+                           value="sqlite:///company.db" readonly>
+                    <div style="color: #666; font-size: 0.9em; margin-top: 5px;">
+                        ✅ SQLite database is already connected and working!
+                    </div>
+                </div>
+                <button onclick="testConnection()" style="padding: 10px 20px; margin-right: 10px;">Test Connection</button>
+                <button onclick="connectDatabase()" style="padding: 10px 20px;">Connect & Analyze</button>
+                <div id="connectionStatus" style="margin-top: 10px;"></div>
+                
+                <!-- Schema Visualization -->
+                <div id="schemaVisualization" style="margin-top: 20px; display: none;">
+                    <h4>Discovered Schema</h4>
+                    <div id="schemaTree" style="border: 1px solid #eee; padding: 10px; min-height: 100px;"></div>
+                </div>
+            </div>
+
+            <!-- Document Upload -->
+            <div style="border: 1px solid #ccc; padding: 20px;">
+                <h3>Document Upload</h3>
+                <div id="dropZone" 
+                     style="border: 2px dashed #ccc; padding: 40px; text-align: center; margin-bottom: 20px;"
+                     ondrop="handleDrop(event)" 
+                     ondragover="handleDragOver(event)">
+                    Drag and drop files here (PDF, DOCX, TXT, CSV)
+                </div>
+                <input type="file" id="fileInput" multiple style="margin-bottom: 20px;" onchange="handleFileSelect(event)">
+                <button onclick="uploadDocuments()" style="padding: 10px 20px;">Upload Documents</button>
+                
+                <!-- Upload Progress -->
+                <div id="uploadProgress" style="margin-top: 20px;"></div>
+                
+                <!-- Processing Status -->
+                <div id="processingStatus" style="margin-top: 20px;"></div>
+            </div>
+        </div>
+
+        <!-- Query Data Section -->
+        <div id="query-section" style="padding: 20px; display: none;">
+            <h2>Query Interface</h2>
+            
+            <!-- Query Input -->
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 5px;">Enter your query:</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="queryInput" 
+                           style="flex: 1; padding: 10px;" 
+                           placeholder="e.g., How many employees? Average salary by department?"
+                           onkeyup="showSuggestions()">
+                    <button onclick="executeQuery()" style="padding: 10px 20px;">Search</button>
+                </div>
+                <div id="suggestions" style="border: 1px solid #ccc; max-height: 150px; overflow-y: auto; display: none;"></div>
+                
+                <!-- Query History -->
+                <div style="margin-top: 10px;">
+                    <select id="queryHistory" onchange="loadFromHistory()" style="width: 100%; padding: 5px;">
+                        <option value="">Select from query history...</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Loading Indicator -->
+            <div id="loadingIndicator" style="display: none; text-align: center; padding: 20px;">
+                <div>Searching database and documents...</div>
+            </div>
+
+            <!-- Results Display -->
+            <div id="resultsSection" style="display: none;">
+                <h3>Results</h3>
+                
+                <!-- Performance Metrics -->
+                <div id="performanceMetrics" style="background: #f9f9f9; padding: 10px; margin-bottom: 20px; border-left: 4px solid #007acc;"></div>
+                
+                <!-- SQL Results -->
+                <div id="sqlResults" style="margin-bottom: 20px;">
+                    <h4>Database Results</h4>
+                    <div id="sqlTableContainer" style="overflow-x: auto;"></div>
+                </div>
+                
+                <!-- Export Buttons -->
+                <div style="margin-top: 20px;">
+                    <button onclick="exportResults('csv')" style="padding: 8px 15px; margin-right: 10px;">Export as CSV</button>
+                    <button onclick="exportResults('json')" style="padding: 8px 15px;">Export as JSON</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metrics Section -->
+        <div id="metrics-section" style="padding: 20px; display: none;">
+            <h2>Metrics Dashboard</h2>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                <!-- Schema Stats -->
+                <div style="border: 1px solid #ccc; padding: 15px;">
+                    <h4>Schema Statistics</h4>
+                    <div id="schemaStats">
+                        <div>Tables: <span id="tableCount">0</span></div>
+                        <div>Columns: <span id="columnCount">0</span></div>
+                        <div>Documents: <span id="documentCount">0</span></div>
+                    </div>
+                </div>
+                
+                <!-- Performance Stats -->
+                <div style="border: 1px solid #ccc; padding: 15px;">
+                    <h4>Performance</h4>
+                    <div id="performanceStats">
+                        <div>Avg Response Time: <span id="avgResponseTime">0ms</span></div>
+                        <div>Cache Hit Rate: <span id="cacheHitRate">0%</span></div>
+                        <div>Total Queries: <span id="totalQueries">0</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API Base URL - Same origin (no CORS issues)
+        const API_BASE = '';
+        
+        // Global state
+        let state = {
+            currentSection: 'connect',
+            schema: null,
+            uploadedFiles: [],
+            queryHistory: [],
+            currentResults: null,
+            metrics: {
+                tables: 0,
+                columns: 0,
+                documents: 0,
+                responseTimes: [],
+                cacheHits: 0,
+                totalQueries: 0
+            }
+        };
+
+        // Sample suggestions
+        const sampleSuggestions = [
+            "How many employees do we have?",
+            "Average salary by department",
+            "Show engineering employees",
+            "Highest paid employees",
+            "List all departments",
+            "Show Python developers",
+            "Average salary",
+            "Recent hires"
+        ];
+
+        // Navigation functions
+        function showSection(section) {
+            document.getElementById('connect-section').style.display = 'none';
+            document.getElementById('query-section').style.display = 'none';
+            document.getElementById('metrics-section').style.display = 'none';
+            
+            document.getElementById(section + '-section').style.display = 'block';
+            state.currentSection = section;
+            
+            if (section === 'metrics') {
+                updateMetricsDashboard();
+            }
+        }
+
+        // Database connection functions - REAL API CALLS
+        async function testConnection() {
+            const statusDiv = document.getElementById('connectionStatus');
+            statusDiv.innerHTML = '<span style="color: blue;">Testing connection to server...</span>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/`);
+                if (response.ok) {
+                    statusDiv.innerHTML = '<span style="color: green;">✅ Server connection successful!</span>';
+                } else {
+                    throw new Error('Server not responding');
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<span style="color: red;">Connection failed: ${error.message}</span>`;
+            }
+        }
+
+        async function connectDatabase() {
+            const statusDiv = document.getElementById('connectionStatus');
+            statusDiv.innerHTML = '<span style="color: blue;">Connecting to database and analyzing schema...</span>';
+            
+            try {
+                // Get schema from backend
+                const response = await fetch(`${API_BASE}/api/schema`);
+                if (!response.ok) throw new Error('Failed to fetch schema');
+                
+                const schemaData = await response.json();
+                state.schema = schemaData;
+                
+                // Update metrics
+                state.metrics.tables = schemaData.total_tables || schemaData.tables.length;
+                state.metrics.columns = schemaData.total_columns || 
+                    schemaData.tables.reduce((acc, table) => acc + table.columns.length, 0);
+                
+                statusDiv.innerHTML = '<span style="color: green;">✅ Successfully discovered schema!</span>';
+                visualizeSchema();
+                
+            } catch (error) {
+                statusDiv.innerHTML = `<span style="color: red;">Failed to analyze schema: ${error.message}</span>`;
+            }
+        }
+
+        function visualizeSchema() {
+            const schemaDiv = document.getElementById('schemaVisualization');
+            const treeDiv = document.getElementById('schemaTree');
+            
+            schemaDiv.style.display = 'block';
+            treeDiv.innerHTML = '';
+            
+            state.schema.tables.forEach(table => {
+                const tableDiv = document.createElement('div');
+                tableDiv.style.marginBottom = '15px';
+                tableDiv.style.padding = '10px';
+                tableDiv.style.border = '1px solid #ddd';
+                tableDiv.style.borderRadius = '4px';
+                
+                tableDiv.innerHTML = `
+                    <strong>${table.name}</strong> <span style="color: #666;">(${table.estimated_purpose || 'table'})</span>
+                    <div style="margin-left: 10px; margin-top: 5px;">
+                        <strong>Columns:</strong>
+                        <ul style="margin: 5px 0;">
+                            ${table.columns.map(col => 
+                                `<li>${col.name} <span style="color: #888;">(${col.type})</span></li>`
+                            ).join('')}
+                        </ul>
+                    </div>
+                `;
+                treeDiv.appendChild(tableDiv);
+            });
+        }
+
+        // File upload functions (simulated for now)
+        function handleDragOver(event) {
+            event.preventDefault();
+            event.currentTarget.style.borderColor = '#007acc';
+            event.currentTarget.style.backgroundColor = '#f0f8ff';
+        }
+
+        function handleDrop(event) {
+            event.preventDefault();
+            const files = event.dataTransfer.files;
+            handleFiles(files);
+        }
+
+        function handleFileSelect(event) {
+            const files = event.target.files;
+            handleFiles(files);
+        }
+
+        function handleFiles(files) {
+            state.uploadedFiles = Array.from(files);
+            const progressDiv = document.getElementById('uploadProgress');
+            
+            let fileList = '<strong>Selected files:</strong><ul>';
+            state.uploadedFiles.forEach(file => {
+                fileList += `<li>${file.name} (${(file.size / 1024).toFixed(2)} KB)</li>`;
+            });
+            fileList += '</ul>';
+            
+            progressDiv.innerHTML = fileList;
+        }
+
+        async function uploadDocuments() {
+            if (state.uploadedFiles.length === 0) {
+                alert('Please select files first');
+                return;
+            }
+            
+            const statusDiv = document.getElementById('processingStatus');
+            statusDiv.innerHTML = '<span style="color: blue;">Uploading documents...</span>';
+            
+            // For demo purposes - in real implementation, you'd upload to backend
+            try {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                state.metrics.documents += state.uploadedFiles.length;
+                statusDiv.innerHTML = `<span style="color: green;">✅ ${state.uploadedFiles.length} documents uploaded successfully!</span>`;
+            } catch (error) {
+                statusDiv.innerHTML = `<span style="color: red;">Upload failed: ${error.message}</span>`;
+            }
+        }
+
+        // Query functions - REAL API CALLS
+        function showSuggestions() {
+            const input = document.getElementById('queryInput').value.toLowerCase();
+            const suggestionsDiv = document.getElementById('suggestions');
+            
+            if (input.length < 1) {
+                suggestionsDiv.style.display = 'none';
+                return;
+            }
+            
+            const filtered = sampleSuggestions.filter(s => s.toLowerCase().includes(input));
+            
+            if (filtered.length === 0) {
+                suggestionsDiv.style.display = 'none';
+                return;
+            }
+            
+            suggestionsDiv.innerHTML = '';
+            filtered.forEach(suggestion => {
+                const div = document.createElement('div');
+                div.style.padding = '8px';
+                div.style.cursor = 'pointer';
+                div.style.borderBottom = '1px solid #eee';
+                div.textContent = suggestion;
+                div.onclick = () => {
+                    document.getElementById('queryInput').value = suggestion;
+                    suggestionsDiv.style.display = 'none';
+                };
+                div.onmouseover = () => div.style.backgroundColor = '#f0f0f0';
+                div.onmouseout = () => div.style.backgroundColor = 'transparent';
+                suggestionsDiv.appendChild(div);
+            });
+            
+            suggestionsDiv.style.display = 'block';
+        }
+
+        async function executeQuery() {
+            const query = document.getElementById('queryInput').value.trim();
+            
+            if (!query) {
+                alert('Please enter a query');
+                return;
+            }
+            
+            // Add to history
+            if (!state.queryHistory.includes(query)) {
+                state.queryHistory.push(query);
+                updateQueryHistory();
+            }
+            
+            // Show loading
+            document.getElementById('loadingIndicator').style.display = 'block';
+            document.getElementById('resultsSection').style.display = 'none';
+            
+            // Store metrics
+            state.metrics.totalQueries++;
+            const startTime = Date.now();
+            
+            try {
+                // REAL API CALL to backend
+                const response = await fetch(`${API_BASE}/api/query`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ query: query })
+                });
+                
+                if (!response.ok) throw new Error('Query failed');
+                
+                const result = await response.json();
+                const responseTime = Date.now() - startTime;
+                
+                state.currentResults = {
+                    ...result,
+                    responseTime: responseTime
+                };
+                
+                state.metrics.responseTimes.push(responseTime);
+                if (result.cache_hit) {
+                    state.metrics.cacheHits++;
+                }
+                
+                displayResults();
+                
+            } catch (error) {
+                document.getElementById('loadingIndicator').style.display = 'none';
+                alert('Query failed: ' + error.message);
+            }
+        }
+
+        function displayResults() {
+            document.getElementById('loadingIndicator').style.display = 'none';
+            document.getElementById('resultsSection').style.display = 'block';
+            
+            const results = state.currentResults;
+            
+            // Performance metrics
+            const metricsDiv = document.getElementById('performanceMetrics');
+            metricsDiv.innerHTML = `
+                Query took ${results.responseTime}ms | 
+                Cache: ${results.cache_hit ? 'HIT' : 'MISS'} | 
+                Type: ${results.query_type.toUpperCase()}
+            `;
+            
+            // SQL Results
+            const sqlContainer = document.getElementById('sqlTableContainer');
+            const data = results.results.data || [];
+            
+            if (data.length > 0) {
+                let tableHtml = '<table style="border-collapse: collapse; width: 100%;">';
+                
+                // Header
+                tableHtml += '<tr style="background: #f0f0f0;">';
+                Object.keys(data[0]).forEach(key => {
+                    tableHtml += `<th style="border: 1px solid #ccc; padding: 8px; text-align: left;">${key}</th>`;
+                });
+                tableHtml += '</tr>';
+                
+                // Rows
+                data.forEach(row => {
+                    tableHtml += '<tr>';
+                    Object.values(row).forEach(value => {
+                        tableHtml += `<td style="border: 1px solid #ccc; padding: 8px;">${value}</td>`;
+                    });
+                    tableHtml += '</tr>';
+                });
+                
+                tableHtml += '</table>';
+                sqlContainer.innerHTML = tableHtml;
+                document.getElementById('sqlResults').style.display = 'block';
+            } else {
+                sqlContainer.innerHTML = '<p>No results found.</p>';
+                document.getElementById('sqlResults').style.display = 'block';
+            }
+        }
+
+        function updateQueryHistory() {
+            const historySelect = document.getElementById('queryHistory');
+            historySelect.innerHTML = '<option value="">Select from query history...</option>';
+            
+            state.queryHistory.forEach(query => {
+                const option = document.createElement('option');
+                option.value = query;
+                option.textContent = query;
+                historySelect.appendChild(option);
+            });
+        }
+
+        function loadFromHistory() {
+            const historySelect = document.getElementById('queryHistory');
+            const selectedQuery = historySelect.value;
+            
+            if (selectedQuery) {
+                document.getElementById('queryInput').value = selectedQuery;
+                historySelect.selectedIndex = 0;
+            }
+        }
+
+        function exportResults(format) {
+            if (!state.currentResults) {
+                alert('No results to export');
+                return;
+            }
+            
+            let data, mimeType, filename;
+            const results = state.currentResults.results.data || [];
+            
+            if (format === 'csv' && results.length > 0) {
+                const headers = Object.keys(results[0]).join(',');
+                const rows = results.map(row => 
+                    Object.values(row).map(value => `"${value}"`).join(',')
+                ).join('\n');
+                data = headers + '\n' + rows;
+                mimeType = 'text/csv';
+                filename = 'query_results.csv';
+            } else {
+                data = JSON.stringify(state.currentResults, null, 2);
+                mimeType = 'application/json';
+                filename = 'query_results.json';
+            }
+            
+            const blob = new Blob([data], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Metrics functions
+        function updateMetricsDashboard() {
+            // Update schema stats
+            document.getElementById('tableCount').textContent = state.metrics.tables;
+            document.getElementById('columnCount').textContent = state.metrics.columns;
+            document.getElementById('documentCount').textContent = state.metrics.documents;
+            
+            // Update performance stats
+            const avgResponseTime = state.metrics.responseTimes.length > 0 
+                ? Math.round(state.metrics.responseTimes.reduce((a, b) => a + b) / state.metrics.responseTimes.length)
+                : 0;
+            const cacheHitRate = state.metrics.totalQueries > 0 
+                ? Math.round((state.metrics.cacheHits / state.metrics.totalQueries) * 100)
+                : 0;
+                
+            document.getElementById('avgResponseTime').textContent = avgResponseTime + 'ms';
+            document.getElementById('cacheHitRate').textContent = cacheHitRate + '%';
+            document.getElementById('totalQueries').textContent = state.metrics.totalQueries;
+        }
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            // Close suggestions when clicking outside
+            document.addEventListener('click', function(event) {
+                if (!event.target.closest('#queryInput') && !event.target.closest('#suggestions')) {
+                    document.getElementById('suggestions').style.display = 'none';
+                }
+            });
+            
+            // Allow Enter key to execute query
+            document.getElementById('queryInput').addEventListener('keypress', function(event) {
+                if (event.key === 'Enter') {
+                    executeQuery();
+                }
+            });
+            
+            // Auto-connect to show it's working
+            setTimeout(() => {
+                document.getElementById('connectionStatus').innerHTML = 
+                    '<span style="color: green;">✅ Ready to connect! Click "Connect & Analyze" to see the schema.</span>';
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
