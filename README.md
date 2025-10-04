@@ -3,7 +3,7 @@
 Natural language query system for mixed structured employee data and unstructured documents. Features dynamic schema discovery, hybrid (SQL + documents) results, caching, pagination, metrics, and export.
 
 GitHub repository: [nlp-engine](https://github.com/SAHIL511-JJ/nlp-engine.git)
-
+LOOM VIDEO DEMO OF THE PEROJECT - https://github.com/SAHIL511-JJ/nlp-engine.git
 ### Features
 - Dynamic schema discovery (no hard-coded tables/columns)
 - Query classification and hybrid results
