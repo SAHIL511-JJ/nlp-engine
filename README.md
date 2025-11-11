@@ -80,6 +80,8 @@ python3 -m venv .venv
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+sqlite:///./company.db
+
 ```
 
 If accessing from host → VM, find the VM IP:

@@ -1,4 +1,3 @@
-cat > index.html << 'EOF'
 <!doctype html>
 <html lang="en">
 <head>
@@ -27,7 +26,11 @@ cat > index.html << 'EOF'
   </style>
 </head>
 <body>
-  <h1>NLP Query Engine</h1>
+  <div style="text-align: center; margin-bottom: 20px;">
+    <h1 style="margin: 0.5em 0 0.2em 0; font-size: 2.2em;">NLP Query Engine</h1>
+    <p style="margin: 0; font-style: italic; color: #a0b0ff; font-size: 1.1em;">The Conversational Bridge to Your Data</p>
+    <p style="margin-top: 0.5em; color: #88a0d0; font-size: 0.95em;">Turning Questions into Insights</p>
+  </div>
 
   <div class="panel">
     <div class="row" style="gap:8px">
@@ -79,19 +82,19 @@ cat > index.html << 'EOF'
 
   <script>
     const API_BASE = "http://localhost:8000";
-    
-    async function safeJson(res){ 
-      const t = await res.text(); 
-      try{ return t ? JSON.parse(t) : {}; } 
-      catch(e){ return {raw:t}; } 
+
+    async function safeJson(res){
+      const t = await res.text();
+      try{ return t ? JSON.parse(t) : {}; }
+      catch(e){ return {raw:t}; }
     }
 
     // Connect to database
     document.getElementById("btnConnect").addEventListener("click", async () => {
-      const out = document.getElementById("connectOut"); 
+      const out = document.getElementById("connectOut");
       const dbUrl = document.getElementById("dbUrl").value.trim();
       out.textContent = "Connecting...";
-      
+
       try {
         if (!dbUrl) throw new Error("Please enter a DB URL");
         const resConn = await fetch(`${API_BASE}/api/connect-database`, {
@@ -101,13 +104,13 @@ cat > index.html << 'EOF'
         });
         const r1 = await safeJson(resConn);
         if (!resConn.ok) throw new Error(r1.detail || r1.error || "Connect failed");
-        
+
         const res = await fetch(`${API_BASE}/api/schema`);
         const data = await safeJson(res);
         if (!res.ok) throw new Error(data.error || "Failed to get schema");
-        
+
         out.innerHTML = `<span class="success">✅ Connected!</span>\nTables: ${data.total_tables}, Columns: ${data.total_columns}, Documents: ${data.total_documents || 0}`;
-      } catch (err) { 
+      } catch (err) {
         out.innerHTML = `<span class="error">Connection failed: ${err.message}</span>`;
       }
     });
@@ -140,13 +143,13 @@ cat > index.html << 'EOF'
         container.innerHTML = "<div class='noResults'>No results</div>";
         return;
       }
-      
+
       const table = document.createElement("table");
       table.className = "dbTable";
       const thead = document.createElement("thead");
       const headerRow = document.createElement("tr");
       const cols = Object.keys(rows[0]);
-      
+
       cols.forEach(c => {
         const th = document.createElement("th");
         th.textContent = c;
@@ -154,7 +157,7 @@ cat > index.html << 'EOF'
       });
       thead.appendChild(headerRow);
       table.appendChild(thead);
-      
+
       const tbody = document.createElement("tbody");
       rows.forEach(r => {
         const tr = document.createElement("tr");
@@ -178,19 +181,19 @@ cat > index.html << 'EOF'
         container.innerHTML = "<div class='noResults'>No documents found</div>";
         return;
       }
-      
+
       docs.forEach(d => {
         const card = document.createElement("div");
         card.className = "docCard";
-        
+
         const title = document.createElement("div");
         title.className = "docCardTitle";
         title.innerHTML = `${d.title} <span style="color:#4f7cff">(${(d.relevance * 100).toFixed(0)}% match)</span>`;
-        
+
         const snippet = document.createElement("div");
         snippet.className = "docCardSnippet";
         snippet.textContent = d.content;
-        
+
         card.appendChild(title);
         card.appendChild(snippet);
         container.appendChild(card);
@@ -203,44 +206,44 @@ cat > index.html << 'EOF'
       const docOut = document.getElementById("docOut");
       const sqlOut = document.getElementById("sqlOut");
       const metrics = document.getElementById("metrics");
-      
+
       const query = document.getElementById("q").value.trim();
       if (!query) {
         alert("Please enter a query");
         return;
       }
-      
+
       dbOut.innerHTML = "<div class='noResults'>Searching...</div>";
       docOut.innerHTML = "<div class='noResults'>Searching...</div>";
       sqlOut.textContent = "Processing...";
       metrics.textContent = "Response: — ms · Type: —";
-      
+
       try {
         const startTime = performance.now();
-        const res = await fetch(`${API_BASE}/api/query`, { 
-          method: "POST", 
-          headers: {"Content-Type": "application/json"}, 
-          body: JSON.stringify({ query }) 
+        const res = await fetch(`${API_BASE}/api/query`, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ query })
         });
         const endTime = performance.now();
-        
+
         const data = await safeJson(res);
         if (!res.ok) throw new Error(data.error || "Query failed");
-        
+
         const responseTime = Math.round(endTime - startTime);
-        
+
         // Update counts
         document.getElementById("sqlCount").textContent = data.results?.sql_count || 0;
         document.getElementById("docCount").textContent = data.results?.document_count || 0;
-        
+
         // Render results
         renderTable(dbOut, data.results?.sql_data || []);
         renderDocCards(docOut, data.results?.document_data || []);
-        
+
         // Show query info
         metrics.textContent = `Response: ${responseTime}ms · Type: ${data.query_type}`;
         sqlOut.textContent = data.results?.generated_sql || "No SQL generated";
-        
+
       } catch (err) {
         dbOut.innerHTML = `<div class="error">Error: ${err.message}</div>`;
         docOut.innerHTML = `<div class="error">Error: ${err.message}</div>`;
@@ -253,22 +256,22 @@ cat > index.html << 'EOF'
     document.getElementById("btnUpload").addEventListener("click", async () => {
       const out = document.getElementById("uploadOut");
       out.textContent = "Creating sample documents...";
-      
+
       try {
-        const res = await fetch(`${API_BASE}/api/ingest/documents`, { 
-          method: "POST", 
-          headers: {"Content-Type": "application/json"} 
+        const res = await fetch(`${API_BASE}/api/ingest/documents`, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"}
         });
-        
+
         const data = await safeJson(res);
         if (!res.ok) throw new Error(data.error || "Upload failed");
-        
+
         out.innerHTML = `<span class="success">✅ ${data.message}</span>`;
-        
+
         // Refresh connection info
         setTimeout(() => document.getElementById("btnConnect").click(), 1000);
-        
-      } catch(err){ 
+
+      } catch(err){
         out.innerHTML = `<span class="error">Upload failed: ${err.message}</span>`;
       }
     });
@@ -314,4 +317,3 @@ cat > index.html << 'EOF'
   </script>
 </body>
 </html>
-EOF
